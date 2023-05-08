@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.24"
-polars = { version = "0.28.0", features = ["lazy","temporal","describe","json","parquet","dtype-datetime"] }
+polars = { version = "0.28.0", features = ["lazy","temporal","describe","json","parquet","dtype-datetime","dtype-struct"] }
 rand = "0.8.5"

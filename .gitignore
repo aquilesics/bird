@@ -1,2 +1,5 @@
 /target
 *.parquet
+.venv
+*.ipynb
+*.csv

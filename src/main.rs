@@ -1,20 +1,64 @@
-#![allow(unused_imports, unused_must_use)]
+#![allow(unused_imports, unused_must_use, dead_code)]
 
 use chrono::{Days, NaiveDate, NaiveDateTime};
-use polars::prelude::*;
+use polars::{prelude::*, lazy::dsl::{as_struct, GetOutput}, export::{arrow::io::parquet::read::ParquetError, regex::Error}};
 use rand::Rng;
 use std::fs::File;
 
+const POS: [&str; 5] = ["05", "07", "10", "81", "01"];
+const MCC: [&str; 9] = [
+    "3212", "1233", "1122", "3331", "2342", "3494", "2340", "9902", "3034",
+];
+
 fn main() {
+
+    // #TODO !!
+    // let df = LazyFrame::scan_parquet("table.parquet", Default::default());
+
+    // let out = df
+    //     .unwrap()
+    //     .sort("dttime_ts",Default::default())
+    //     .groupby_stable([col("crt")])
+    //     .agg( [ 
+    //         as_struct(&[col("crt")]).apply(|s|test, GetOutput::from_type(DataType::Utf8))
+    //          ]);
+
+    // println!("{}", out.collect().unwrap());
+}
+
+struct Rule {
+    qtd: u64,
+    ts: f64,
+    vlr: f64,
+}
+
+
+impl Rule {
+    fn r1(self, _df: &DataFrame) -> String {
+        "teste".to_string()
+    }
+}
+
+// # TODO
+// fn test() -> Result<String,String> {
+//     Ok:<T,E>("sd".to_string());
+//     Err("error".to_string())
+
+// }
+fn export() {
+    let mut df = fake_aut();
+    let file = File::create("table.parquet").expect("error on create file");
+    ParquetWriter::new(file).finish(&mut df).unwrap();
+
+    let file = File::create("table.csv").expect("error on create file");
+    CsvWriter::new(file).finish(&mut df).unwrap();
+}
+
+fn fake_aut<'a>() -> DataFrame {
     let mut rng = rand::thread_rng();
 
-    // let vlr = Series::new("VLR", &[1, 2, 3]);
+    const SIZE_DF: usize = 20_000_000;
 
-    // let mut df = DataFrame::new(vec![vlr]).unwrap();
-
-    const _SIZE: usize = 500;
-
-    let file = File::create("table.parquet").expect("error on create file");
     let mut tmp_vlr = vec![];
     let dt_start = NaiveDate::from_ymd_opt(2023, 01, 01)
         .unwrap()
@@ -23,92 +67,49 @@ fn main() {
     let dt_end = dt_start.checked_add_days(Days::new(90)).unwrap();
     let dt_start_ts: i64 = dt_start.timestamp();
     let dt_end_ts: i64 = dt_end.timestamp();
-    let mut tmp_ts = vec![];
+    let mut tmp_ts: Vec<f64> = vec![];
     let mut tmp_dt: Vec<NaiveDateTime> = vec![];
-    let mut _tmp_pos:Vec<String>   = vec![];  
-    let mut _tmp_mcc:Vec<String>   = vec![]; 
-    let mut _tmp_ec:Vec<String>    = vec![]; 
-    let mut _tmp_ec_id:Vec<String> = vec![]; 
-    let mut _tmp_crt:Vec<String>   = vec![]; 
-    let mut _tmp_score:Vec<String> = vec![];
+    let mut tmp_pos: Vec<&str> = vec![];
+    let mut tmp_mcc: Vec<&str> = vec![];
+    let mut tmp_ec: Vec<String> = vec![];
+    let mut tmp_ec_id: Vec<String> = vec![];
+    let mut tmp_crt: Vec<String> = vec![];
+    let mut tmp_score: Vec<u64> = vec![];
+    // let mut c1:[u64;SIZE_DF] = [064; SIZE_DF ];
+    // rng.fill(&mut c1[..]);
 
-
-    for _i in 1..= 50_000_000 {
-
+    for _i in 1..=SIZE_DF {
         let vlr: f64 = rng.gen_range(100. ..10_000.);
         let ts = rng.gen_range(dt_start_ts..dt_end_ts);
         let dt = NaiveDateTime::from_timestamp_opt(ts, 0);
-
+        &tmp_pos.push(POS[rng.gen_range(1..POS.len())]);
+        &tmp_mcc.push(MCC[rng.gen_range(1..MCC.len())]);
+        &tmp_ec_id.push(rng.gen_range(100000..999999).to_string());
+        &tmp_ec.push("ec_teste".to_string());
+        &tmp_crt.push(
+            rng.gen_range(41873777_u64 + 0_u64..41873777_u64 + 10_000_u64)
+                .to_string(),
+        );
+        &tmp_score.push(rng.gen_range(0..100));
         &tmp_vlr.push((vlr * 100.).round() / 100.0);
-        &tmp_ts.push(ts);
+        &tmp_ts.push(ts as f64 / (24 * 3600) as f64);
         &tmp_dt.push(dt.unwrap());
     }
 
-    // let mut i_array = [0u64; SIZE];
-    // let mut f_array = [0f64; SIZE];
+    let df = df!(
+       "vlr"        => &tmp_vlr,
+       "dttime_ts"  => &tmp_ts,
+       "dttime"     => &tmp_dt,
+       "score"      => &tmp_score,
+       "crt"        => &tmp_crt,
+       "ec"         => &tmp_ec,
+       "ec_id"      => &tmp_ec_id,
+       "mcc"        => &tmp_mcc,
+       "pos"        => &tmp_pos
+    )
+    .unwrap()
+    .with_row_count("row_number", None)
+    .unwrap();
 
-    // rng.fill(&mut i_array[..]);
-    // rng.fill(&mut f_array[..]);
-
-    // let s1 = Series::new("ivlr", &tmp_vlr  ) ;
-    // let s2 = Series::new("fvlr", &tmp_vlr ) ;
-    // let vlr = s1 + s2;
-
-    let mut df = df!("vlr"        => &tmp_vlr,
-                                "dttime_ts"  => &tmp_ts,
-                                "dttime"     => &tmp_dt  )
-                            .unwrap();
-    ParquetWriter::new(file).finish(&mut df).unwrap();
+    df
 }
-
-// struct Transaction {
-//     crt: u64,
-//     ec: u64,
-//     ec_nome: String,
-//     dttime_aut: String,
-//     score: u64,
-//     pos: String,
-//     acquirer: u64,
-//     bandeira: String,
-//     name: String,
-//     c1: String,
-//     c2: String,
-//     c3: String,
-//     c4: u64,
-//     c5: u64,
-//     c6: u64,
-//     c7: u64,
-//     c8: u64,
-//     c9: u64,
-//     c10: u64,
-//     c11: u64,
-//     c12: u64,
-// }
-
-// impl Transaction {
-//     fn new(&self) -> Transaction {
-//         Transaction {
-//             crt: (),
-//             ec: (),
-//             ec_nome: (),
-//             dttime_aut: (),
-//             score: (),
-//             pos: (),
-//             acquirer: (),
-//             bandeira: (),
-//             name: (),
-//             c1: (),
-//             c2: (),
-//             c3: (),
-//             c4: (),
-//             c5: (),
-//             c6: (),
-//             c7: (),
-//             c8: (),
-//             c9: (),
-//             c10: (),
-//             c11: (),
-//             c12: (),
-//         }
-//     }
-// }
