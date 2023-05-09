@@ -1,7 +1,11 @@
 #![allow(unused_imports, unused_must_use, dead_code)]
 
 use chrono::{Days, NaiveDate, NaiveDateTime};
-use polars::{prelude::*, lazy::dsl::{as_struct, GetOutput}, export::{arrow::io::parquet::read::ParquetError, regex::Error}};
+use polars::{
+    export::{arrow::io::parquet::read::ParquetError, regex::Error},
+    lazy::dsl::{as_struct, GetOutput},
+    prelude::*,
+};
 use rand::Rng;
 use std::fs::File;
 
@@ -11,19 +15,35 @@ const MCC: [&str; 9] = [
 ];
 
 fn main() {
-
     // #TODO !!
-    // let df = LazyFrame::scan_parquet("table.parquet", Default::default());
+    let df = LazyFrame::scan_parquet("table.parquet", Default::default());
 
-    // let out = df
-    //     .unwrap()
-    //     .sort("dttime_ts",Default::default())
-    //     .groupby_stable([col("crt")])
-    //     .agg( [ 
-    //         as_struct(&[col("crt")]).apply(|s|test, GetOutput::from_type(DataType::Utf8))
-    //          ]);
+    let out = df
+        .unwrap()
+        .sort("dttime_ts", Default::default() )
+        .groupby_stable([ col("crt") ] )
+        .agg([as_struct(&[ col("vlr"), col("dttime_ts")] )
+            .apply(|s| { let ca = &s.struct_().unwrap().fields()[0];
+                                           let cb = &s.struct_().unwrap().fields()[1];
+        
+                                           let out = ca.f64()?.into_iter()
+                                                        .zip(cb.f64()?)
+                                                        .map(|(a,b)|{
+                                                            match (a,b) {
+                                                                ( Some(b),_)=> Some( b.to_string() ),
+                                                                ( _,Some(a )) => Some(a.to_string()),
+                                                                _ => None
+                                                                
+                                                            }
+                                                        })
+                                                        .collect();                                            
 
-    // println!("{}", out.collect().unwrap());
+                                      
+                                            Ok( out) 
+                                         }, GetOutput::from_type(DataType::Utf8))
+            .alias("name")]);
+
+    println!("{}", out.collect().unwrap());
 }
 
 struct Rule {
@@ -32,7 +52,6 @@ struct Rule {
     vlr: f64,
 }
 
-
 impl Rule {
     fn r1(self, _df: &DataFrame) -> String {
         "teste".to_string()
@@ -40,11 +59,9 @@ impl Rule {
 }
 
 // # TODO
-// fn test() -> Result<String,String> {
-//     Ok:<T,E>("sd".to_string());
-//     Err("error".to_string())
-
-// }
+fn test(series: Series) -> Result<Series, PolarsError> {
+    Ok(series.shift(1))
+}
 fn export() {
     let mut df = fake_aut();
     let file = File::create("table.parquet").expect("error on create file");
