@@ -2,7 +2,7 @@
 
 use chrono::{Days, NaiveDate, NaiveDateTime};
 use polars::{
-    export::{arrow::io::parquet::read::ParquetError, regex::Error},
+    export::{arrow::io::parquet::read::ParquetError, regex::Error, rayon::result},
     lazy::dsl::{as_struct, GetOutput},
     prelude::*,
 };
@@ -15,6 +15,9 @@ const MCC: [&str; 9] = [
 ];
 
 fn main() {
+    // 1 | 2 | 3 | 4 |
+    // a | b | c | d
+
     // #TODO !!
     let df = LazyFrame::scan_parquet("table.parquet", Default::default());
 
@@ -23,11 +26,25 @@ fn main() {
         .sort("dttime_ts", Default::default() )
         .groupby_stable([ col("crt") ] )
         .agg([as_struct(&[ col("vlr"), col("dttime_ts")] )
-            .apply(|s| { let ca = &s.struct_().unwrap().fields()[0];
-                                           let cb = &s.struct_().unwrap().fields()[1];
-        
-                                           let out = ca.f64()?.into_iter()
-                                                        .zip(cb.f64()?)
+            .apply(|s| { let vlr = &s.struct_().unwrap().fields()[0];
+                                           let ts = &s.struct_().unwrap().fields()[1];
+                                           let mut _result:Vec<bool> = vec![];
+                                           
+                                           //
+
+                                           for i in s.struct_().into_iter() {
+                                                println!("{}x{}",
+                                                            i.field_by_name("vlr").unwrap().max::<f64>().unwrap(),
+                                                            i.field_by_name("dttime_ts").unwrap().max::<f64>().unwrap()
+                                                        );
+                                                
+
+                                                //_result.push( i.field_by_name("dttime_ts").unwrap() )
+                                           }
+
+
+                                           let out = vlr.f64()?.into_iter()
+                                                        .zip(ts.f64()?)
                                                         .map(|(a,b)|{
                                                             match (a,b) {
                                                                 ( Some(b),_)=> Some( b.to_string() ),
@@ -39,7 +56,7 @@ fn main() {
                                                         .collect();                                            
 
                                       
-                                            Ok( out) 
+                                            Ok( out ) 
                                          }, GetOutput::from_type(DataType::Utf8))
             .alias("name")]);
 
