@@ -4,7 +4,7 @@ use chrono::{Days, NaiveDate, NaiveDateTime};
 use polars::{
     export::{arrow::io::parquet::read::ParquetError, regex::Error, rayon::result},
     lazy::dsl::{as_struct, GetOutput},
-    prelude::*,
+    prelude::*, time::series::IntoSeriesOps,
 };
 use rand::Rng;
 use std::fs::File;
@@ -26,37 +26,27 @@ fn main() {
         .sort("dttime_ts", Default::default() )
         .groupby_stable([ col("crt") ] )
         .agg([as_struct(&[ col("vlr"), col("dttime_ts")] )
-            .apply(|s| { let vlr = &s.struct_().unwrap().fields()[0];
-                                           let ts = &s.struct_().unwrap().fields()[1];
-                                           let mut _result:Vec<bool> = vec![];
+            .apply(|s| { let _vlr = &s.struct_().unwrap().fields()[0];
+                                           let _ts = &s.struct_().unwrap().fields()[1];
                                            
-                                           //
-
-                                           for i in s.struct_().into_iter() {
-                                                println!("{}x{}",
-                                                            i.field_by_name("vlr").unwrap().max::<f64>().unwrap(),
-                                                            i.field_by_name("dttime_ts").unwrap().max::<f64>().unwrap()
-                                                        );
-                                                
-
-                                                //_result.push( i.field_by_name("dttime_ts").unwrap() )
-                                           }
-
-
-                                           let out = vlr.f64()?.into_iter()
-                                                        .zip(ts.f64()?)
-                                                        .map(|(a,b)|{
-                                                            match (a,b) {
-                                                                ( Some(b),_)=> Some( b.to_string() ),
-                                                                ( _,Some(a )) => Some(a.to_string()),
-                                                                _ => None
-                                                                
-                                                            }
-                                                        })
-                                                        .collect();                                            
-
-                                      
-                                            Ok( out ) 
+                                           let  _result:Option<Series> = 
+                                                &s.struct_( )?
+                                                    .apply(|s2|{
+                                                        let mut r  = vec![];
+                                                        let x = &s2.struct_()?.field_by_name("vlr").unwrap().min::<f64>();
+                                                        let y = &s2.struct_()?.field_by_name("dttimes_ts").unwrap().min::<f64>();
+                                                        r.push([x,y]);  
+                                                        print!("here 2");
+                                                        println!("{} x {}",x.unwrap(),y.unwrap() );
+                                                        Ok( Option::None  )  
+                                                    }, GetOutput::default() ).into_iter().map(|x|
+                                                        match Some(x) {
+                                                            Some(x) => Some(x.to_string()),
+                                                            _ => None                                                        
+                                                    }).collect();
+                             
+                                            
+                                            Ok( _result )
                                          }, GetOutput::from_type(DataType::Utf8))
             .alias("name")]);
 
