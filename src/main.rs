@@ -2,10 +2,12 @@
 
 use chrono::{Days, NaiveDate, NaiveDateTime};
 use polars::{
-    export::{arrow::io::parquet::read::ParquetError, regex::Error, rayon::result},
+    export::{arrow::io::parquet::read::ParquetError, rayon::result, regex::Error},
     lazy::dsl::{as_struct, GetOutput},
-    prelude::*, time::series::IntoSeriesOps,
+    prelude::*,
+    time::series::IntoSeriesOps, chunked_array,
 };
+use polars::lazy::prelude::*;
 use rand::Rng;
 use std::fs::File;
 
@@ -20,36 +22,45 @@ fn main() {
 
     // #TODO !!
     let df = LazyFrame::scan_parquet("table.parquet", Default::default());
+    let _fil = df.as_ref().unwrap().clone();
 
     let out = df
         .unwrap()
-        .sort("dttime_ts", Default::default() )
-        .groupby_stable([ col("crt") ] )
-        .agg([as_struct(&[ col("vlr"), col("dttime_ts")] )
-            .apply(|s| { let _vlr = &s.struct_().unwrap().fields()[0];
-                                           let _ts = &s.struct_().unwrap().fields()[1];
-                                           
-                                           let  _result:Option<Series> = 
-                                                &s.struct_( )?
-                                                    .apply(|s2|{
-                                                        let mut r  = vec![];
-                                                        let x = &s2.struct_()?.field_by_name("vlr").unwrap().min::<f64>();
-                                                        let y = &s2.struct_()?.field_by_name("dttimes_ts").unwrap().min::<f64>();
-                                                        r.push([x,y]);  
-                                                        print!("here 2");
-                                                        println!("{} x {}",x.unwrap(),y.unwrap() );
-                                                        Ok( Option::None  )  
-                                                    }, GetOutput::default() ).into_iter().map(|x|
-                                                        match Some(x) {
-                                                            Some(x) => Some(x.to_string()),
-                                                            _ => None                                                        
-                                                    }).collect();
-                             
-                                            
-                                            Ok( _result )
-                                         }, GetOutput::from_type(DataType::Utf8))
+        .filter( col("crt").eq(lit("41882770")) )
+        .tail(20)
+        .sort("dttime_ts", Default::default())
+        .groupby_stable([col("crt")])
+        .agg([as_struct(&[col("vlr"), col("dttime_ts")])
+                .apply(|s| {
+                    let ca = s.struct_()?;
+                    let sa = &ca.fields()[1];
+                    let mut index = 0;
+                    s.iter().for_each(|x|{
+                        println!("index {}{}\n",index, x);
+                        index += 1
+                    });
+                    
+                    // for i  in ca.into_iter(){
+                    //     println!("{:?}", i )
+                    // }
+
+                    let _result =
+                    sa.f64()?
+                    .into_iter()
+                    .map(|v| match v {
+                        v => Some(v)
+                        }
+                    ).collect();
+                 
+
+                    Ok(_result)
+                                                
+                },
+                GetOutput::from_type(DataType::Utf8),
+            )
             .alias("name")]);
 
+    println!("{}", &_fil.filter( col("crt").eq(lit("41882770"))).sort("dttime_ts", Default::default()).tail(20) .collect().unwrap());
     println!("{}", out.collect().unwrap());
 }
 
